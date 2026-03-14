@@ -1,175 +1,183 @@
-import { kpis, REGIOES, linhasProducao } from "../data/caseData";
+import { useEffect, useRef } from "react";
+import { Chart, registerables } from "chart.js";
+import { demandaRegional, demandaVsProducao, kpis, W, demandaNENO, wsnpNENO, capacidadeMax } from "../data/caseData";
+import { C, fmt, fmtM, baseOpts } from "../components/utils";
 
-function fmt(n: number) {
-  return n.toLocaleString("pt-BR");
+Chart.register(...registerables);
+
+function BarRegional() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    const ch = new Chart(ref.current,{
+      type:"bar",
+      data:{
+        labels: demandaRegional.map(d=>d.regiao),
+        datasets:[
+          { label:"Janeiro", data: demandaRegional.map(d=>d.jan), backgroundColor: C.blue+"99", borderRadius:3 },
+          { label:"Fevereiro", data: demandaRegional.map(d=>d.fev), backgroundColor: C.gold+"bb", borderRadius:3 },
+        ]
+      },
+      options:{
+        ...baseOpts(),
+        plugins:{
+          ...baseOpts().plugins,
+          legend:{display:true, labels:{color:C.text2, font:{size:11}, boxWidth:12, boxHeight:12}},
+          tooltip:{
+            ...baseOpts().plugins.tooltip,
+            callbacks:{ label:(ctx)=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} KHL` }
+          }
+        }
+      }
+    });
+    return ()=>ch.destroy();
+  },[]);
+  return <canvas ref={ref}/>;
+}
+
+function LineCapacidade() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    const ch = new Chart(ref.current,{
+      type:"line",
+      data:{
+        labels: W,
+        datasets:[
+          { label:"Demanda Nova", data: demandaNENO, borderColor: C.orange, backgroundColor:"transparent", pointBackgroundColor:C.orange, pointRadius:4, borderWidth:2.2 },
+          { label:"WSNP", data: wsnpNENO, borderColor: C.blue, backgroundColor:"transparent", pointBackgroundColor:C.blue, pointRadius:4, borderWidth:2.2 },
+          { label:"Cap. Máxima", data: capacidadeMax, borderColor: C.red+"99", backgroundColor:"transparent", pointRadius:0, borderWidth:1.5, borderDash:[5,4] },
+        ]
+      },
+      options:{
+        ...baseOpts(),
+        plugins:{
+          ...baseOpts().plugins,
+          legend:{display:true, labels:{color:C.text2, font:{size:11}, boxWidth:12, boxHeight:12}},
+          tooltip:{
+            ...baseOpts().plugins.tooltip,
+            callbacks:{ label:(ctx)=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)} HL` }
+          }
+        },
+        scales:{
+          ...baseOpts().scales,
+          y:{ ...baseOpts().scales.y, ticks:{ ...baseOpts().scales.y.ticks, callback:(v)=>` ${Number(v)/1000}k` } }
+        }
+      }
+    });
+    return ()=>ch.destroy();
+  },[]);
+  return <canvas ref={ref}/>;
 }
 
 export default function Overview() {
   return (
     <div className="page">
-      <div className="page-header">
-        <div className="section-tag">◆ Visão Geral</div>
-        <h1>Long Neck NENO — Análise de Capacidade</h1>
-        <p>
-          Crescimento de demanda premium pressiona capacidade produtiva do Nordeste-Norte.
-          Análise de impactos, alavancas e custos do aumento de +30% Malzbier (fev) e +10% TT LN (mar).
-        </p>
-      </div>
+      <div className="page-tag">⬡ Visão Geral</div>
+      <div className="page-title">Long Neck NENO — Contexto e Capacidade</div>
+      <div className="page-sub">Crescimento premium pressiona capacidade instalada de 158 KHL/mês. Aumento de +30% Malzbier (fev) e +10% TT LN (mar) exige ação imediata.</div>
 
       {/* KPIs */}
-      <div className="kpi-grid">
-        <div className="kpi-card" style={{ "--accent": "var(--c-gold)" } as React.CSSProperties}>
-          <div className="kpi-label">Custo Total da Operação</div>
-          <div className="kpi-value">R$ {(kpis.custoTotal / 1000).toFixed(0)}k</div>
-          <div className="kpi-sub">Transferências via rodo + cabotagem</div>
+      <div className="kpi-row" style={{gridTemplateColumns:"repeat(5,minmax(0,1fr))"}}>
+        {[
+          {label:"Custo Total Resolução", val:fmtM(kpis.custoTotal),    sub:"Alavancas 2+3+4",       ac:"var(--gold)"  },
+          {label:"DOI Médio Final",       val:`${kpis.doiMedio}d`,       sub:"Meta: 12 dias",         ac:"var(--green)" },
+          {label:"Regiões na Meta",       val:`${kpis.pctMeta}%`,        sub:"atende DOI ≥ 12",       ac:"var(--blue)"  },
+          {label:"Gap Residual",          val:`${fmt(kpis.gapTotal)} HL`,sub:"100% em Patagonia",     ac:"var(--red)"   },
+          {label:"Volume Enviado SP",     val:`${fmt(kpis.volSP)} HL`,   sub:"Alavancas 3+4",         ac:"var(--orange)"},
+        ].map(k=>(
+          <div key={k.label} className="kpi-card" style={{"--ac":k.ac} as React.CSSProperties}>
+            <div className="kpi-label">{k.label}</div>
+            <div className="kpi-val" style={{fontSize:18}}>{k.val}</div>
+            <div className="kpi-sub">{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="g2">
+        {/* Demanda regional */}
+        <div className="card">
+          <div className="card-title">Demanda LN por regional — Jan vs Fev (KHL)</div>
+          <div className="chart-wrap" style={{height:180}}><BarRegional/></div>
+          <div className="info info-b" style={{marginTop:8}}>NENO tem o maior volume do Brasil — 201 KHL em Jan. Destaque em vermelho no slide.</div>
         </div>
-        <div className="kpi-card" style={{ "--accent": "var(--c-green)" } as React.CSSProperties}>
-          <div className="kpi-label">DOI Médio Final</div>
-          <div className="kpi-value">{kpis.doiMedioFinal}d</div>
-          <div className="kpi-sub">Meta mínima: 12 dias</div>
-        </div>
-        <div className="kpi-card" style={{ "--accent": "var(--c-blue)" } as React.CSSProperties}>
-          <div className="kpi-label">Regiões na Meta DOI</div>
-          <div className="kpi-value">{kpis.pctRegioesMeta}%</div>
-          <div className="kpi-sub">Das 5 sub-regiões do NENO</div>
-        </div>
-        <div className="kpi-card" style={{ "--accent": "var(--c-red)" } as React.CSSProperties}>
-          <div className="kpi-label">Gap Total em HL</div>
-          <div className="kpi-value">{fmt(kpis.gapTotalHL)}</div>
-          <div className="kpi-sub">Volume abaixo da meta DOI 12</div>
-        </div>
-        <div className="kpi-card" style={{ "--accent": "var(--c-orange)" } as React.CSSProperties}>
-          <div className="kpi-label">Vol. Transferido de SP</div>
-          <div className="kpi-value">{fmt(kpis.volumeTransferidoSP)} HL</div>
-          <div className="kpi-sub">Rodoviário + cabotagem</div>
-        </div>
-        <div className="kpi-card" style={{ "--accent": "var(--c-purple)" } as React.CSSProperties}>
-          <div className="kpi-label">Prod. Extra NENO</div>
-          <div className="kpi-value">{fmt(kpis.producaoExtraNENO)} HL</div>
-          <div className="kpi-sub">Capacidade ociosa CE + PE</div>
+
+        {/* Demanda vs cap */}
+        <div className="card">
+          <div className="card-title">Demanda nova vs WSNP vs capacidade máxima (HL/sem)</div>
+          <div className="chart-wrap" style={{height:180}}><LineCapacidade/></div>
+          <div className="info info-r" style={{marginTop:8}}>Demanda supera cap. máxima em 6 das 8 semanas. Pico: 50.673 HL em W5 vs cap. 39.600 HL.</div>
         </div>
       </div>
 
-      <div className="charts-2col">
-        {/* Estrutura logística */}
+      {/* Estrutura + contexto */}
+      <div className="g2">
         <div className="card">
-          <div className="card-title">Estrutura Produtiva NENO</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {linhasProducao.map((l) => (
-              <div key={l.linha} style={{
-                background: "var(--c-surface-2)",
-                borderRadius: "var(--r-sm)",
-                padding: "14px 16px",
-                borderLeft: "3px solid var(--c-gold)"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15 }}>{l.linha}</span>
-                  <span className="badge badge-gold">{l.capacidade} KHL/mês</span>
+          <div className="card-title">Estrutura produtiva NENO</div>
+          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+            {[
+              {linha:"AQ541",cap:108,skus:"Brahma Zero · Goose · Malzbier · Colorado · Beats · Bud Zero"},
+              {linha:"NS541",cap:50, skus:"Malzbier · Colorado · Patagonia"},
+            ].map(l=>(
+              <div key={l.linha} style={{background:"var(--surface2)",borderRadius:8,padding:"11px 14px",borderLeft:"2px solid var(--gold)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <span style={{fontFamily:"var(--font-d)",fontWeight:700,fontSize:14}}>{l.linha}</span>
+                  <span className="badge ba">{l.cap} KHL/mês</span>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {l.skus.map(s => (
-                    <span key={s} style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid var(--c-border-2)",
-                      borderRadius: 4,
-                      padding: "2px 7px",
-                      fontSize: 11,
-                      color: "var(--c-text-2)"
-                    }}>{s}</span>
-                  ))}
-                </div>
+                <div style={{fontSize:11,color:"var(--text3)"}}>{l.skus}</div>
               </div>
             ))}
-
-            <div style={{
-              background: "rgba(240,165,0,0.06)",
-              border: "1px solid rgba(240,165,0,0.2)",
-              borderRadius: "var(--r-sm)",
-              padding: "12px 16px"
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--c-gold)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                Capacidade Combinada
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:2}}>
+              <div style={{background:"var(--surface2)",borderRadius:8,padding:"9px",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Cap. combinada</div>
+                <div style={{fontFamily:"var(--font-d)",fontWeight:700,fontSize:17,color:"var(--text)"}}>158 KHL</div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "var(--c-text-2)", fontSize: 12 }}>Total instalado</span>
-                <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--c-text)" }}>158 KHL/mês</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                <span style={{ color: "var(--c-text-2)", fontSize: 12 }}>Demanda observada (Jan)</span>
-                <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--c-red)" }}>201 KHL/mês</span>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--c-red)", marginTop: 8 }}>
-                ⚠ Gap estrutural de ~43 KHL/mês — sistema já opera no limite
+              <div style={{background:"var(--red-bg)",borderRadius:8,padding:"9px",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"var(--red)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>Demanda Jan</div>
+                <div style={{fontFamily:"var(--font-d)",fontWeight:700,fontSize:17,color:"var(--red)"}}>201 KHL</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Sub-regiões + logística */}
         <div className="card">
-          <div className="card-title">Sub-regiões NENO & Logística</div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-            {REGIOES.map((r, i) => {
-              const destinos: Record<string, string> = {
-                "Mapapi":      "CDR João Pessoa",
-                "NE Norte":    "CDR João Pessoa",
-                "NE Sul":      "CDR Camaçari (BA)",
-                "NO Araguaia": "Uberlândia (retira)",
-                "NO Centro":   "CDR João Pessoa",
-              };
-              const cores = ["var(--c-gold)", "var(--c-blue)", "var(--c-green)", "var(--c-purple)", "var(--c-orange)"];
+          <div className="card-title">Demanda vs produção — Jan/Fev (HL)</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {demandaVsProducao.map((d,i)=>{
+              const colors=["var(--red)","var(--blue)","var(--blue)","var(--orange)","var(--green)"];
               return (
-                <div key={r} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 12px",
-                  background: "var(--c-surface-2)",
-                  borderRadius: "var(--r-sm)",
-                  borderLeft: `3px solid ${cores[i]}`
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--c-text)" }}>{r}</span>
-                  <span style={{ fontSize: 11, color: "var(--c-text-3)" }}>{destinos[r]}</span>
+                <div key={i} className="prog-row">
+                  <div className="prog-label">
+                    <span style={{color:"var(--text2)"}}>{d.label}</span>
+                    <span style={{fontWeight:600,color:"var(--text)"}}>{fmt(d.val)} HL</span>
+                  </div>
+                  <div className="prog-track">
+                    <div className="prog-fill" style={{width:`${(d.val/210000)*100}%`,background:colors[i]}}/>
+                  </div>
                 </div>
               );
             })}
           </div>
+          <div className="info info-r">Gap produtivo Jan: <strong>57.219 HL</strong> — sistema já dependia de transferências antes do aumento.</div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={{ background: "var(--c-surface-2)", borderRadius: "var(--r-sm)", padding: "12px", textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: "var(--c-text-3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Modal Rodo</div>
-              <div style={{ fontSize: 12, color: "var(--c-text-2)" }}>Lead time &lt; 1 semana</div>
-              <div style={{ fontSize: 11, color: "var(--c-orange)", marginTop: 4 }}>Semanas W0–W2</div>
-            </div>
-            <div style={{ background: "var(--c-surface-2)", borderRadius: "var(--r-sm)", padding: "12px", textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: "var(--c-text-3)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Cabotagem</div>
-              <div style={{ fontSize: 12, color: "var(--c-text-2)" }}>3 semanas antecedência</div>
-              <div style={{ fontSize: 11, color: "var(--c-blue)", marginTop: 4 }}>Semanas W3+</div>
-            </div>
+          <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:7}}>
+            <div className="card-title">Sub-regiões NENO</div>
+            {[
+              {r:"Mapapi",     dest:"CDR João Pessoa"},
+              {r:"NE Norte",   dest:"CDR João Pessoa"},
+              {r:"NE Sul",     dest:"CDR Camaçari (BA)"},
+              {r:"NO Araguaia",dest:"Uberlândia (retirada)"},
+              {r:"NO Centro",  dest:"CDR João Pessoa"},
+            ].map((s,i)=>{
+              const cs=["var(--gold)","var(--blue)","var(--green)","var(--purple)","var(--orange)"];
+              return (
+                <div key={s.r} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 10px",background:"var(--surface2)",borderRadius:6,borderLeft:`2px solid ${cs[i]}`}}>
+                  <span style={{fontSize:12,color:"var(--text)"}}>{s.r}</span>
+                  <span style={{fontSize:10,color:"var(--text3)"}}>{s.dest}</span>
+                </div>
+              );
+            })}
           </div>
-        </div>
-      </div>
-
-      {/* Contexto do case */}
-      <div className="card" style={{ marginTop: 0 }}>
-        <div className="card-title">Contexto do Case</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-          {[
-            { label: "+30% Malzbier", desc: "Aumento de demanda em fevereiro via incentivos comerciais para manutenção de market share", color: "var(--c-red)" },
-            { label: "+10% TT LN",    desc: "Crescimento de +10% no total de Long Neck a partir de março, caso queiram crescer market share", color: "var(--c-orange)" },
-            { label: "DOI Meta: 12d", desc: "Cobertura mínima de 12 dias de estoque para todas as sub-regiões do NENO", color: "var(--c-gold)" },
-          ].map((item) => (
-            <div key={item.label} style={{
-              background: "var(--c-surface-2)",
-              borderRadius: "var(--r-sm)",
-              padding: "14px",
-              borderTop: `2px solid ${item.color}`
-            }}>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--c-text)", marginBottom: 6 }}>{item.label}</div>
-              <div style={{ fontSize: 12, color: "var(--c-text-2)", lineHeight: 1.6 }}>{item.desc}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
